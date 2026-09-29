@@ -142,6 +142,13 @@
         .ga-status { font-size: 0.78rem; color: #64748b; margin-top: 12px; line-height: 1.8; }
         .ga-status b { color: #4f46e5; }
         @media (max-width: 768px) { .usage-grid { grid-template-columns: repeat(2, 1fr); } }
+
+        .lock-fab { position: fixed; bottom: 18px; left: 18px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(100,116,139,0.3); background: rgba(255,255,255,0.75); color: #94a3b8; font-size: 1rem; cursor: pointer; z-index: 60; opacity: 0.5; transition: all 0.2s; line-height: 1; padding: 0; }
+        .lock-fab:hover { opacity: 1; color: #4f46e5; border-color: #6366f1; transform: scale(1.12); }
+        .pin-box { position: fixed; bottom: 60px; left: 18px; background: #fff; border: 1px solid rgba(99,102,241,0.3); border-radius: 12px; padding: 12px 14px; display: flex; gap: 8px; align-items: center; z-index: 61; box-shadow: 0 6px 20px rgba(51,65,85,0.15); }
+        .pin-box label { color: #4f46e5; font-size: 0.82rem; font-weight: 600; }
+        .pin-box input { width: 88px; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(100,116,139,0.3); font-size: 0.9rem; text-align: center; letter-spacing: 3px; outline: none; }
+        .pin-box .btn { padding: 7px 16px; font-size: 0.8rem; }
     </style>
 </head><body>
     <div class="container">
@@ -153,7 +160,14 @@
 
         <div style="text-align:center;margin:10px 0 0;">
             <button class="btn zip" id="zipBtn">📦 حزّم الصفحة (ZIP) للإيميل</button>
-            <button class="btn secondary" id="usageToggle">📈 إحصائية الاستخدام</button>
+        </div>
+
+        <button class="lock-fab" id="usageToggle" title="منطقة خاصة">🔒</button>
+
+        <div class="pin-box hidden" id="pinBox">
+            <label for="pinInput">الرمز السري</label>
+            <input type="password" id="pinInput" inputmode="numeric" autocomplete="off" placeholder="••••">
+            <button class="btn" id="pinOk">دخول</button>
         </div>
 
         <div class="usage-panel hidden" id="usagePanel">
@@ -162,6 +176,7 @@
                 <span class="usage-actions">
                     <button class="btn success" id="usageCopy">📋 نسخ التقرير</button>
                     <button class="btn secondary" id="usageReset">🗑️ تصفير</button>
+                    <button class="btn secondary" id="usageClose">✖️ إخفاء</button>
                 </span>
             </div>
             <div class="usage-grid" id="usageGrid"></div>
@@ -267,6 +282,9 @@
         const ANALYTICS = {
             gaId: 'G-XXXXXXXXXX'
         };
+        const USAGE_PIN = '1234';
+        let usageUnlocked = false;
+        try { usageUnlocked = sessionStorage.getItem('sd_usage_ok') === '1'; } catch (e) { }
         const USAGE_KEY = 'sd_usage_v1';
         const USAGE_FIELDS = [
             ['visits', 'فتحات الصفحة', 'مرات فتح الصفحة'],
@@ -329,6 +347,7 @@
         }
 
         function renderUsage() {
+            if (!usageUnlocked) return;
             $('usageGrid').innerHTML = USAGE_FIELDS.map(([k, label, sub]) => {
                 let note = sub;
                 let value = usage[k] || 0;
@@ -390,13 +409,45 @@
             track('visits');
         }
 
-        $('usageToggle').addEventListener('click', () => $('usagePanel').classList.toggle('hidden'));
+        function pinAccepted() {
+            const v = ($('pinInput').value || '').trim();
+            if (USAGE_PIN && v !== USAGE_PIN) {
+                $('pinInput').value = '';
+                alert('الرمز السري غير صحيح');
+                return;
+            }
+            usageUnlocked = true;
+            try { sessionStorage.setItem('sd_usage_ok', '1'); } catch (e) { }
+            $('pinBox').classList.add('hidden');
+            $('usagePanel').classList.remove('hidden');
+            renderUsage();
+        }
+
+        function hideUsage() {
+            usageUnlocked = false;
+            try { sessionStorage.removeItem('sd_usage_ok'); } catch (e) { }
+            $('usagePanel').classList.add('hidden');
+            $('pinBox').classList.add('hidden');
+            $('pinInput').value = '';
+        }
+
+        $('usageToggle').addEventListener('click', () => {
+            if (usageUnlocked) { $('usagePanel').classList.add('hidden'); return; }
+            if (!USAGE_PIN) { $('usagePanel').classList.remove('hidden'); renderUsage(); return; }
+            $('pinBox').classList.remove('hidden');
+            $('pinInput').focus();
+            $('pinInput').select();
+        });
+        $('usageClose').addEventListener('click', hideUsage);
+        $('pinOk').addEventListener('click', pinAccepted);
+        $('pinInput').addEventListener('keydown', e => { if (e.key === 'Enter') pinAccepted(); });
         $('usageCopy').addEventListener('click', copyUsageReport);
         $('usageReset').addEventListener('click', () => {
             if (!confirm('هل تريد تصفير إحصائيات الاستخدام على هذا الجهاز؟')) return;
             localStorage.removeItem(USAGE_KEY);
             usage = { visits: 0, days: [], first: '', last: '', files: 0, recalcs: 0, exports: 0, emails: 0, png: 0, zips: 0, log: [] };
             initUsage();
+            renderUsage();
         });
 
         function toEn(n) {
