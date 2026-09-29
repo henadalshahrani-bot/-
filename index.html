@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حاسبة القرارات المساحية</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #e0f2fe 0%, #f8fafc 50%, #eef2ff 100%);
+            min-height: 100vh;
+            color: #1e293b;
+            direction: rtl;
+            padding-bottom: 60px;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        .container { max-width: 1300px; margin: 0 auto; padding: 25px; }
+        header { text-align: center; padding: 25px 0 10px; }
+        h1 { font-size: 1.9rem; background: linear-gradient(90deg, #0284c7, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .subtitle { color: #64748b; margin-top: 8px; font-size: 1rem; }
+
+        .upload-area {
+            background: rgba(255,255,255,0.85);
+            border: 3px dashed #38bdf8;
+            border-radius: 18px;
+            padding: 50px 30px;
+            text-align: center;
+            margin: 25px 0;
+            transition: all 0.3s;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(51,65,85,0.06);
+        }
+        .upload-area:hover { background: rgba(255,255,255,0.98); border-color: #6366f1; transform: scale(1.01); }
+        .upload-area.dragover { background: rgba(220,252,231,0.95); border-color: #22c55e; }
+        .upload-icon { font-size: 60px; margin-bottom: 12px; }
+        .upload-text { font-size: 1.3rem; color: #334155; }
+        .upload-subtext { color: #64748b; margin-top: 6px; font-size: 0.95rem; }
+        input[type="file"] { display: none; }
+
+        .file-info {
+            background: rgba(255,255,255,0.9);
+            border: 1px solid rgba(2,132,199,0.25);
+            border-radius: 10px;
+            padding: 14px 20px;
+            margin: 15px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            box-shadow: 0 2px 8px rgba(51,65,85,0.05);
+        }
+        .file-name { color: #0284c7; font-weight: 600; }
+
+        .btn {
+            border: none; padding: 10px 24px; border-radius: 24px; color: #fff;
+            background: linear-gradient(90deg, #0ea5e9, #6366f1); cursor: pointer; font-size: 0.95rem; transition: all 0.2s;
+        }
+        .btn:hover { transform: scale(1.04); box-shadow: 0 4px 18px rgba(14,165,233,0.35); }
+        .btn.secondary { background: linear-gradient(90deg, #e11d48, #fb7185); }
+        .btn.success { background: linear-gradient(90deg, #16a34a, #4ade80); color: #052e16; }
+        .btn.email { background: linear-gradient(90deg, #7c3aed, #a21caf); }
+        .btn.png { background: linear-gradient(90deg, #0891b2, #22d3ee); color: #052e16; }
+        .btn.zip { background: linear-gradient(90deg, #d97706, #f59e0b); color: #052e16; }
+        .hidden { display: none !important; }
+
+        .settings-box {
+            background: rgba(255,255,255,0.9);
+            border: 1px solid rgba(99,102,241,0.25);
+            border-radius: 12px; padding: 18px; margin: 18px 0;
+            box-shadow: 0 2px 10px rgba(51,65,85,0.06);
+        }
+        .settings-box h3 { color: #4f46e5; margin-bottom: 14px; cursor: pointer; }
+        .setting-item { margin-bottom: 14px; }
+        .setting-item label { display: block; color: #4f46e5; margin-bottom: 6px; font-size: 0.9rem; font-weight: 600; }
+        .setting-item select {
+            width: 100%; padding: 9px 12px; border-radius: 8px;
+            border: 1px solid rgba(100,116,139,0.3); background: #fff;
+            color: #1e293b; font-size: 0.9rem; outline: none;
+        }
+        .setting-item select option { background: #fff; }
+
+        .note { background: rgba(99,102,241,0.08); border-right: 4px solid #6366f1; padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 14px 0; color: #4f46e5; font-size: 0.85rem; line-height: 1.7; }
+
+        .summary-section { background: rgba(255,255,255,0.92); border: 1px solid rgba(100,116,139,0.15); border-radius: 14px; padding: 22px; margin: 22px 0; box-shadow: 0 2px 10px rgba(51,65,85,0.06); }
+        .summary-section h2 { color: #0284c7; margin-bottom: 16px; font-size: 1.15rem; border-bottom: 2px solid rgba(2,132,199,0.2); padding-bottom: 9px; }
+        .summary-table { width: 100%; border-collapse: collapse; }
+        .summary-table th, .summary-table td { padding: 10px 14px; text-align: right; border-bottom: 1px solid rgba(100,116,139,0.1); }
+        .summary-table th { background: rgba(14,165,233,0.1); color: #0369a1; font-weight: 600; }
+        .summary-table tr:hover { background: rgba(14,165,233,0.05); }
+        .total-row { background: rgba(99,102,241,0.12); font-weight: 700; }
+        .total-row td { color: #4338ca; }
+
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 20px 0; }
+        .stat-card { background: rgba(255,255,255,0.92); border: 1px solid rgba(100,116,139,0.15); border-radius: 12px; padding: 18px; text-align: center; box-shadow: 0 2px 8px rgba(51,65,85,0.05); }
+        .stat-label { color: #64748b; font-size: 0.82rem; margin-bottom: 8px; }
+        .stat-value { font-size: 1.4rem; font-weight: 700; color: #0284c7; }
+
+        .assign-box { background: rgba(255,255,255,0.92); border: 1px solid rgba(100,116,139,0.15); border-radius: 12px; padding: 16px; margin: 18px 0; box-shadow: 0 2px 8px rgba(51,65,85,0.05); }
+        .assign-box h3 { color: #4f46e5; margin-bottom: 12px; }
+        .assign-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .assign-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(241,245,249,0.85); border-radius: 8px; padding: 8px 12px; }
+        .assign-row .st-label { color: #334155; font-size: 0.9rem; }
+        .assign-row select { padding: 6px 8px; border-radius: 6px; border: 1px solid rgba(100,116,139,0.3); background: #fff; color: #1e293b; font-size: 0.85rem; outline: none; }
+        .assign-row select option { background: #fff; }
+
+        .legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0; font-size: 0.82rem; }
+        .legend span { padding: 3px 10px; border-radius: 14px; }
+        .lg-1 { background: #dcfce7; color: #15803d; }
+        .lg-2 { background: #e0f2fe; color: #0369a1; }
+        .lg-3 { background: #fef9c3; color: #a16207; }
+        .lg-4 { background: #ffe4e6; color: #be123c; }
+        .lg-x { background: #f1f5f9; color: #475569; }
+
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .chart-box { background: rgba(255,255,255,0.95); border: 1px solid rgba(100,116,139,0.12); border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(51,65,85,0.05); }
+        .chart-box canvas { max-height: 320px; }
+        @media (max-width: 768px) { .chart-grid { grid-template-columns: 1fr; } }
+
+        @media (max-width: 768px) { .stats-row, .assign-list { grid-template-columns: 1fr; } }
+
+        .usage-panel { background: rgba(255,255,255,0.95); border: 1px solid rgba(99,102,241,0.25); border-radius: 14px; padding: 20px; margin: 18px 0; box-shadow: 0 2px 10px rgba(51,65,85,0.06); }
+        .usage-head { color: #4f46e5; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 1.05rem; }
+        .usage-actions { display: flex; gap: 8px; }
+        .usage-actions .btn { padding: 6px 14px; font-size: 0.8rem; }
+        .usage-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+        .usage-card { background: rgba(241,245,249,0.85); border: 1px solid rgba(100,116,139,0.12); border-radius: 10px; padding: 12px; text-align: center; }
+        .usage-label { color: #64748b; font-size: 0.78rem; margin-bottom: 6px; }
+        .usage-value { font-size: 1.25rem; font-weight: 700; color: #0284c7; }
+        .usage-sub { color: #94a3b8; font-size: 0.72rem; margin-top: 4px; }
+        .usage-log { background: rgba(15,23,42,0.03); border: 1px solid rgba(100,116,139,0.12); border-radius: 10px; padding: 12px; max-height: 230px; overflow-y: auto; }
+        .usage-log .row { padding: 5px 0; border-bottom: 1px dashed rgba(100,116,139,0.18); font-size: 0.82rem; color: #334155; display: flex; justify-content: space-between; gap: 10px; }
+        .usage-log .row:last-child { border-bottom: none; }
+        .usage-empty { color: #94a3b8; font-size: 0.85rem; text-align: center; padding: 10px 0; }
+        .ga-status { font-size: 0.78rem; color: #64748b; margin-top: 12px; line-height: 1.8; }
+        .ga-status b { color: #4f46e5; }
+        @media (max-width: 768px) { .usage-grid { grid-template-columns: repeat(2, 1fr); } }
+    </style>
+</head><body>
+    <div class="container">
+        <header>
+            <p class="subtitle" style="color:#4f46e5;font-weight:600;letter-spacing:0.5px;">إعداد: هند الشهراني</p>
+            <h1>حاسبة القرارات المساحية</h1>
+            <p class="subtitle">ارفع بيانات بلدي، حدد الفئات، وسيتم الحساب تلقائياً</p>
+        </header>
+
+        <div style="text-align:center;margin:10px 0 0;">
+            <button class="btn zip" id="zipBtn">📦 حزّم الصفحة (ZIP) للإيميل</button>
+            <button class="btn secondary" id="usageToggle">📈 إحصائية الاستخدام</button>
+        </div>
+
+        <div class="usage-panel hidden" id="usagePanel">
+            <div class="usage-head">
+                <span>📈 إحصائية الاستخدام على هذا الجهاز</span>
+                <span class="usage-actions">
+                    <button class="btn success" id="usageCopy">📋 نسخ التقرير</button>
+                    <button class="btn secondary" id="usageReset">🗑️ تصفير</button>
+                </span>
+            </div>
+            <div class="usage-grid" id="usageGrid"></div>
+            <div class="usage-log" id="usageLog"></div>
+            <p class="ga-status" id="gaStatus"></p>
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📊</div>
+            <div class="upload-text">اسحب ملف Excel هنا</div>
+            <div class="upload-subtext">أو اضغط لاختيار الملف (.xlsx, .xls, .csv)</div>
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+        </div>
+
+        <div class="file-info hidden" id="fileInfo">
+            <span>📂 الملف: <span class="file-name" id="fileName"></span></span>
+            <div>
+                <button class="btn" onclick="document.getElementById('fileInput').click()">📁 ملف جديد</button>
+                <button class="btn email" id="emailBtn">✉️ إرسال بالتقرير (إيميل)</button>
+                <button class="btn png" id="pngBtn">🖼️ حفظ الرسم البياني</button>
+                <button class="btn success" id="exportBtn">📥 تصدير Excel</button>
+            </div>
+        </div>
+
+        <div id="resultsArea" class="hidden">
+
+            <div class="settings-box">
+                <h3>⚙️ الإعدادات</h3>
+                <div class="setting-item">
+                    <label>عمود حالة الطلب (مصدر الحساب):</label>
+                    <select id="colStatus" onchange="recalc()"></select>
+                </div>
+            </div>
+
+            <div class="assign-box">
+                <h3>🎯 توزيع الحالات على الفئات</h3>
+                <div class="legend">
+                    <span class="lg-1">المنتهي</span>
+                    <span class="lg-2">لدى المستفيد</span>
+                    <span class="lg-3">تحت الإجراء</span>
+                    <span class="lg-4">المرفوض</span>
+                    <span class="lg-x">مستبعد (لا يُحسب في الملخص)</span>
+                </div>
+                <div class="assign-list" id="assignList"></div>
+            </div>
+
+            <div class="note" id="noteBox"></div>
+
+            <div class="stats-row">
+                <div class="stat-card"><div class="stat-label">الإجمالي الكلي</div><div class="stat-value" id="sTotal">0</div></div>
+                <div class="stat-card"><div class="stat-label">الإجمالي المحسوب</div><div class="stat-value" id="sEff">0</div></div>
+                <div class="stat-card"><div class="stat-label">المنجز (المنتهي + لدى المستفيد + المرفوض)</div><div class="stat-value" id="sDone">0</div></div>
+                <div class="stat-card"><div class="stat-label">نسبة الإنجاز</div><div class="stat-value" id="sRate">0%</div></div>
+            </div>
+
+            <div class="summary-section">
+                <h2>🔍 جدول البيان الكامل (تفاصيل الحالات كما وردت)</h2>
+                <table class="summary-table">
+                    <thead><tr><th>البيان</th><th>العدد</th><th>النسبة</th></tr></thead>
+                    <tbody id="statusBody"></tbody>
+                </table>
+            </div>
+
+            <div class="summary-section">
+                <h2>📋 جدول الإنجاز (البيان / العدد / النسبة)</h2>
+                <table class="summary-table">
+                    <thead><tr><th>البيان</th><th>العدد</th><th>النسبة</th></tr></thead>
+                    <tbody id="completionBody"></tbody>
+                </table>
+            </div>
+
+            <div class="summary-section" id="chartSection">
+                <h2>📊 الرسم البياني لجدول الإنجاز</h2>
+                <div class="chart-box"><h3 style="color:#4f46e5;font-size:0.95rem;margin-bottom:10px;">العدد حسب الفئة (أعمدة)</h3><canvas id="barChart" style="max-height:380px;"></canvas></div>
+            </div>
+        </div>
+    </div><script>
+        let rawData = [], statusColumn = '';
+        const categories = {
+            'م1': { name: 'المنتهي', cls: 'lg-1' },
+            'م2': { name: 'لدى المستفيد', cls: 'lg-2' },
+            'م3': { name: 'تحت الإجراء', cls: 'lg-3' },
+            'م4': { name: 'المرفوض', cls: 'lg-4' },
+            'م0': { name: 'مستبعد', cls: 'lg-x' }
+        };
+        const defaultAssign = {
+            'منتهى': 'م1',
+            'ملغى': 'م1',
+            'بانتظار اتمام عملية الدفع': 'م2',
+            'تم إرسال الطلب إلى المكتب الهندسي': 'م2',
+            'المستفيد': 'م2',
+            'الطلب لدى المساح/المهندس': 'م3',
+            'الطلب لدى استقبال القرارات المساحية': 'م3',
+            'الطلب لدى مشرف القرارات المساحية': 'م3',
+            'تم رفض الطلب': 'م4',
+            'مستلم من المكتب الهندسي': 'م0',
+            'مسودة': 'م0'
+        };
+        let assign = {};
+
+        const $ = id => document.getElementById(id);
+
+        const ANALYTICS = {
+            gaId: 'G-XXXXXXXXXX'
+        };
+        const USAGE_KEY = 'sd_usage_v1';
+        const USAGE_FIELDS = [
+            ['visits', 'فتحات الصفحة', 'مرات فتح الصفحة'],
+            ['days', 'أيام استخدام فريدة', 'أول استخدام: '],
+            ['files', 'ملفات مرفوعة', 'ملف Excel / CSV'],
+            ['recalcs', 'عمليات إعادة الحساب', 'تغيير عمود أو فئة'],
+            ['exports', 'تصدير Excel', 'ملفات تقرير'],
+            ['emails', 'تقارير إيميل', 'أُرسلت بالبريد'],
+            ['png', 'حفظ رسم بياني', 'صور PNG'],
+            ['zips', 'حزم ZIP', 'أُرسلت بالإيميل']
+        ];
+        const USAGE_LOG = { visits: 'فتح الصفحة', files: 'رفع ملف', recalcs: 'إعادة حساب', exports: 'تصدير Excel', emails: 'تقرير إيميل', png: 'حفظ PNG', zips: 'حزمة ZIP' };
+        let usage = { visits: 0, days: [], first: '', last: '', files: 0, recalcs: 0, exports: 0, emails: 0, png: 0, zips: 0, log: [] };
+
+        function gaEnabled() {
+            const id = String(ANALYTICS.gaId || '').trim();
+            return /^G-[A-Z0-9]{4,}$/.test(id) && !/^G-X+$/i.test(id);
+        }
+
+        function initGa() {
+            if (!gaEnabled() || window.gtag) return;
+            window.dataLayer = window.dataLayer || [];
+            window.gtag = function () { window.dataLayer.push(arguments); };
+            window.gtag('js', new Date());
+            window.gtag('config', ANALYTICS.gaId.trim(), { anonymize_ip: true });
+            const s = document.createElement('script');
+            s.async = true;
+            s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(ANALYTICS.gaId.trim());
+            document.head.appendChild(s);
+        }
+
+        function loadUsage() {
+            try {
+                const raw = JSON.parse(localStorage.getItem(USAGE_KEY));
+                if (raw && typeof raw === 'object') usage = Object.assign(usage, raw);
+            } catch (e) { }
+            if (!Array.isArray(usage.days)) usage.days = [];
+            if (!Array.isArray(usage.log)) usage.log = [];
+        }
+
+        function saveUsage() {
+            try { localStorage.setItem(USAGE_KEY, JSON.stringify(usage)); } catch (e) { }
+        }
+
+        function track(action, detail) {
+            if (action in USAGE_LOG || action === 'visits') {
+                usage[action] = (Number(usage[action]) || 0) + 1;
+                usage.log.unshift({ d: new Date().toLocaleString('ar-SA'), a: USAGE_LOG[action] || action, t: detail || '' });
+                usage.log = usage.log.slice(0, 20);
+                saveUsage();
+            }
+            renderUsage();
+            if (window.gtag) window.gtag('event', action, detail ? { event_label: String(detail).slice(0, 60) } : {});
+        }
+
+        function usageCard(label, value, sub) {
+            return `<div class="usage-card"><div class="usage-label">${esc(label)}</div>
+                <div class="usage-value">${esc(value)}</div>
+                <div class="usage-sub">${esc(sub || '')}</div></div>`;
+        }
+
+        function renderUsage() {
+            $('usageGrid').innerHTML = USAGE_FIELDS.map(([k, label, sub]) => {
+                let note = sub;
+                let value = usage[k] || 0;
+                if (k === 'days') { note = 'أول استخدام: ' + (usage.first || '—'); value = usage.days.length; }
+                if (k === 'visits') note = 'آخر زيارة: ' + (usage.last || '—');
+                return usageCard(label, toEn(value), note);
+            }).join('');
+
+            $('usageLog').innerHTML = usage.log.length
+                ? usage.log.map(i => `<div class="row"><span>${esc(i.d)}</span><span>${esc(i.a)}${i.t ? ' — ' + esc(i.t) : ''}</span></div>`).join('')
+                : '<div class="usage-empty">لا توجد أنشطة مسجلة بعد</div>';
+
+            $('gaStatus').innerHTML = gaEnabled()
+                ? 'التتبّع الخارجي (GA4): <b>مفعّل</b> بالمعرّف <b>' + esc(ANALYTICS.gaId.trim()) + '</b> — تظهر الزيارات والأحداث في لوحة Google Analytics خلال 24 إلى 48 ساعة.'
+                : 'التتبّع الخارجي (GA4): <b>غير مفعّل</b> — لتفعيله ضع معرّف القياس في <b>ANALYTICS.gaId</b> أعلى هذا السكربت (مثال: G-ABC123XYZ9) ثم أعد رفع الملف. الإحصائيات أعلاه تعمل محلياً على هذا الجهاز دائماً.';
+        }
+
+        function usageReport() {
+            const pad = '----------------';
+            const lines = [
+                'تقرير إحصائية الاستخدام - حاسبة القرارات المساحية',
+                'الجهاز: ' + navigator.platform + ' | المتصفح: ' + navigator.userAgent.slice(0, 60),
+                'أول استخدام: ' + (usage.first || '—') + ' | آخر زيارة: ' + (usage.last || '—'),
+                pad
+            ];
+            USAGE_FIELDS.forEach(([k, label]) => { if (k !== 'visits') lines.push(label + ': ' + toEn(k === 'days' ? usage.days.length : (usage[k] || 0))); });
+            lines.push('فتحات الصفحة: ' + toEn(usage.visits || 0));
+            if (usage.log.length) {
+                lines.push(pad, 'آخر الأنشطة:');
+                usage.log.forEach(i => lines.push('- ' + i.d + ' | ' + i.a + (i.t ? ' — ' + i.t : '')));
+            }
+            return lines.join('\n');
+        }
+
+        function copyUsageReport() {
+            document.removeEventListener('copy', blockCopy);
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = usageReport();
+                ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+                document.body.appendChild(ta);
+                ta.select();
+                const ok = document.execCommand('copy');
+                ta.remove();
+                alert(ok ? 'تم نسخ تقرير الاستخدام، الصقه في الإيميل أو التقرير.' : 'تعذر النسخ على هذا المتصفح.');
+            } finally {
+                document.addEventListener('copy', blockCopy);
+            }
+        }
+
+        function initUsage() {
+            loadUsage();
+            initGa();
+            const now = new Date();
+            const day = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+            if (usage.days.indexOf(day) === -1) usage.days.push(day);
+            if (!usage.first) usage.first = now.toLocaleString('ar-SA');
+            usage.last = now.toLocaleString('ar-SA');
+            track('visits');
+        }
+
+        $('usageToggle').addEventListener('click', () => $('usagePanel').classList.toggle('hidden'));
+        $('usageCopy').addEventListener('click', copyUsageReport);
+        $('usageReset').addEventListener('click', () => {
+            if (!confirm('هل تريد تصفير إحصائيات الاستخدام على هذا الجهاز؟')) return;
+            localStorage.removeItem(USAGE_KEY);
+            usage = { visits: 0, days: [], first: '', last: '', files: 0, recalcs: 0, exports: 0, emails: 0, png: 0, zips: 0, log: [] };
+            initUsage();
+        });
+
+        function toEn(n) {
+            const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+            return String(n).replace(/[٠-٩]/g, d => map[d]);
+        }
+
+        $('uploadArea').addEventListener('click', () => $('fileInput').click());
+        $('uploadArea').addEventListener('dragover', e => { e.preventDefault(); $('uploadArea').classList.add('dragover'); });
+        $('uploadArea').addEventListener('dragleave', () => $('uploadArea').classList.remove('dragover'));
+        $('uploadArea').addEventListener('drop', e => {
+            e.preventDefault(); $('uploadArea').classList.remove('dragover');
+            if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+        });
+        $('fileInput').addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+        function loadFile(file) {
+            if (!file.name.match(/\.(xlsx|xls|csv)$/i)) { alert('يرجى رفع ملف Excel أو CSV'); return; }
+            $('fileName').textContent = file.name;
+            $('fileInfo').classList.remove('hidden');
+            $('uploadArea').classList.add('hidden');
+            $('resultsArea').classList.add('hidden');
+            track('files', file.name);
+
+            const reader = new FileReader();
+            reader.onload = e => {
+                const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                const sn = wb.SheetNames.find(s => s.includes('Table')) || wb.SheetNames[0];
+                rawData = XLSX.utils.sheet_to_json(wb.Sheets[sn], { defval: '' });
+                const columns = rawData.length ? Object.keys(rawData[0]) : [];
+
+                $('colStatus').innerHTML = '<option value="">-- اختر العمود --</option>' +
+                    columns.map(c => `<option value="${c}">${c}</option>`).join('');
+                $('colStatus').value = columns.find(c => c.trim() === 'مسمي حالة الطلب') || '';
+
+                if ($('colStatus').value) {
+                    statusColumn = $('colStatus').value;
+                    buildAssign();
+                    recalc();
+                } else {
+                    $('statusBody').innerHTML = '<tr><td colspan="3" style="color:#e11d48">لم يتم العثور على عمود حالة الطلب</td></tr>';
+                }
+                $('resultsArea').classList.remove('hidden');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function buildAssign() {
+            const statSet = [...new Set(rawData.map(r => r[statusColumn]).filter(s => s !== '' && s != null))];
+            assign = {};
+            statSet.forEach(s => {
+                assign[s] = (s in defaultAssign) ? defaultAssign[s] : 'م0';
+            });
+            $('assignList').innerHTML = statSet.map(s => `
+                <div class="assign-row">
+                    <span class="st-label">${s}</span>
+                    <select onchange="updateAssign('${s.replace(/'/g, "\\'")}', this.value)">
+                        <option value="م1" ${assign[s]==='م1'?'selected':''}>المنتهي</option>
+                        <option value="م2" ${assign[s]==='م2'?'selected':''}>لدى المستفيد</option>
+                        <option value="م3" ${assign[s]==='م3'?'selected':''}>تحت الإجراء</option>
+                        <option value="م4" ${assign[s]==='م4'?'selected':''}>المرفوض</option>
+                        <option value="م0" ${assign[s]==='م0'?'selected':''}>مستبعد</option>
+                    </select>
+                </div>`).join('');
+        }
+
+        function updateAssign(status, cat) {
+            assign[status] = cat;
+            recalc();
+        }
+
+        function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+        function recalc() {
+            statusColumn = $('colStatus').value || statusColumn;
+            if (!rawData.length || !statusColumn) return;
+
+            const total = rawData.length;
+            const sc = {};
+            rawData.forEach(r => { const s = r[statusColumn] || 'غير محدد'; sc[s] = (sc[s]||0)+1; });
+            const sorted = Object.entries(sc).sort((a,b) => b[1]-a[1]);
+
+            $('statusBody').innerHTML = sorted.map(([s,c]) =>
+                `<tr><td>${esc(s)}</td><td>${toEn(c)}</td><td>${toEn((c/total*100).toFixed(1))}%</td></tr>`
+            ).join('') + `<tr class="total-row"><td>الإجمالي الكلي</td><td>${toEn(total)}</td><td>100%</td></tr>`;
+
+            const catCount = { 'م1':0, 'م2':0, 'م3':0, 'م4':0, 'م0':0 };
+            const catDetail = { 'م1':{}, 'م2':{}, 'م3':{}, 'م4':{}, 'م0':{} };
+            Object.entries(sc).forEach(([s,c]) => {
+                const cat = assign[s] || 'م0';
+                catCount[cat] = (catCount[cat]||0) + c;
+                catDetail[cat][s] = c;
+            });
+
+            const eff = catCount['م1'] + catCount['م2'] + catCount['م3'] + catCount['م4'];
+            const done = catCount['م1'] + catCount['م2'] + catCount['م4'];
+            const rate = eff ? (done/eff*100) : 0;
+
+            const p1 = eff ? Math.round(catCount['م1']/eff*100) : 0;
+            const p2 = eff ? Math.round(catCount['م2']/eff*100) : 0;
+            const p3 = eff ? Math.round(catCount['م3']/eff*100) : 0;
+            const p4 = eff ? Math.round(catCount['م4']/eff*100) : 0;
+            $('completionBody').innerHTML = `
+                <tr><td>المنتهي</td><td style="color:#16a34a;font-weight:700">${toEn(catCount['م1'])}</td><td>${toEn(p1)}%</td></tr>
+                <tr><td>لدى المستفيد</td><td style="color:#0284c7;font-weight:700">${toEn(catCount['م2'])}</td><td>${toEn(p2)}%</td></tr>
+                <tr><td>تحت الإجراء</td><td style="color:#ca8a04;font-weight:700">${toEn(catCount['م3'])}</td><td>${toEn(p3)}%</td></tr>
+                <tr><td>المرفوض</td><td style="color:#be123c;font-weight:700">${toEn(catCount['م4'])}</td><td>${toEn(p4)}%</td></tr>
+                <tr class="total-row"><td>الإجمالي المحسوب</td><td>${toEn(eff)}</td><td>100%</td></tr>
+                <tr><td>المنجز (المنتهي + لدى المستفيد + المرفوض)</td><td style="color:#16a34a;font-weight:700">${toEn(done)}</td><td>-</td></tr>
+                <tr class="total-row"><td>نسبة الإنجاز</td><td colspan="2" style="color:#16a34a;font-size:1.2rem">${toEn(rate.toFixed(0))}%</td></tr>`;
+
+            $('sTotal').textContent = toEn(total);
+            $('sEff').textContent = toEn(eff);
+            $('sDone').textContent = toEn(done);
+            $('sRate').textContent = toEn(rate.toFixed(0)) + '%';
+
+            const exc = Object.entries(catDetail['م0']).map(([s,c]) => `${s} (${c})`);
+            $('noteBox').innerHTML = `<strong>ملاحظة:</strong> الحالات المستبعدة من ملخص الإنجاز: ${
+                exc.length ? exc.join('، ') : 'لا توجد'
+            } — إجمالي المستبعد ${catCount['م0']} ${eff?`من أصل ${total}`:''}.`;
+
+            updateCharts(catCount, eff);
+            track('recalcs');
+        }
+
+        let barChart = null;
+        let chartImageDataUrl = null;
+
+        const valueLabelPlugin = {
+            id: 'valueLabels',
+            afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                chart.data.datasets.forEach((dataset, di) => {
+                    const meta = chart.getDatasetMeta(di);
+                    if (meta.hidden) return;
+                    meta.data.forEach((bar, i) => {
+                        const value = dataset.data[i];
+                        if (value === null || value === undefined) return;
+                        ctx.save();
+                        ctx.fillStyle = '#1e293b';
+                        ctx.font = 'bold 13px Arial, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'bottom';
+                        ctx.fillText(value, bar.x, bar.y - 6);
+                        ctx.restore();
+                    });
+                });
+            }
+        };
+
+        function updateCharts(catCount, eff) {
+            if (typeof Chart === 'undefined') return;
+            const labels = ['المنتهي', 'لدى المستفيد', 'تحت الإجراء', 'المرفوض'];
+            const values = [catCount['م1'], catCount['م2'], catCount['م3'], catCount['م4']];
+            const colors = ['#22c55e', '#ef4444', '#eab308', '#f43f5e'];
+            const yMax = Math.max(1, ...values) * 1.15;
+
+            if (barChart) barChart.destroy();
+            barChart = new Chart($('barChart'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'العدد',
+                        data: values,
+                        backgroundColor: colors,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#475569' }, grid: { color: 'rgba(100,116,139,0.12)' } },
+                        y: { beginAtZero: true, max: yMax, ticks: { color: '#475569', precision: 0 }, grid: { color: 'rgba(100,116,139,0.12)' } }
+                    }
+                },
+                plugins: [valueLabelPlugin]
+            });
+
+            setTimeout(() => {
+                const cv = $('barChart');
+                const ctx2 = cv.getContext('2d').canvas;
+                const img = new Image();
+                img.onload = () => {
+                    const tmp = document.createElement('canvas');
+                    tmp.width = ctx2.width; tmp.height = ctx2.height;
+                    const tctx = tmp.getContext('2d');
+                    tctx.fillStyle = '#ffffff';
+                    tctx.fillRect(0, 0, tmp.width, tmp.height);
+                    tctx.drawImage(ctx2, 0, 0);
+                    chartImageDataUrl = tmp.toDataURL('image/png');
+                };
+                img.src = cv.toDataURL('image/png');
+            }, 300);
+        }
+
+        $('exportBtn').addEventListener('click', () => {
+            if (!rawData.length || !statusColumn) return;
+
+            const total = rawData.length;
+            const sc = {};
+            rawData.forEach(r => { const s = r[statusColumn] || 'غير محدد'; sc[s] = (sc[s]||0)+1; });
+            const sorted = Object.entries(sc).sort((a,b) => b[1]-a[1]);
+
+            const catCount = { 'م1':0, 'م2':0, 'م3':0, 'م4':0, 'م0':0 };
+            Object.entries(sc).forEach(([s,c]) => {
+                const cat = assign[s] || 'م0';
+                catCount[cat] = (catCount[cat]||0) + c;
+            });
+            const eff = catCount['م1'] + catCount['م2'] + catCount['م3'] + catCount['م4'];
+            const done = catCount['م1'] + catCount['م2'] + catCount['م4'];
+            const rate = eff ? (done/eff*100) : 0;
+
+            const dateStr = new Date().toLocaleDateString('ar-SA');
+
+            function styleSheet(ws, opts) {
+                opts = opts || {};
+                if (opts.cols) ws['!cols'] = opts.cols;
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                for (let R = range.s.r; R <= range.e.r; R++) {
+                    for (let C = range.s.c; C <= range.e.c; C++) {
+                        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                        if (!ws[addr]) continue;
+                        ws[addr].s = {
+                            border: { top: { style: 'none' }, bottom: { style: 'none' }, left: { style: 'none' }, right: { style: 'none' } },
+                            alignment: { horizontal: 'right', vertical: 'center' }
+                        };
+                        if (opts.headerRows && opts.headerRows.includes(R)) {
+                            ws[addr].s.fill = { patternType: 'solid', fgColor: { rgb: 'D9E2F3' } };
+                            ws[addr].s.font = { bold: true, size: 9, color: { rgb: '1F3864' } };
+                        }
+                        if (opts.title && R === 0) {
+                            ws[addr].s.font = { bold: true, size: 14, color: { rgb: '1F3864' } };
+                            ws[addr].s.alignment = { horizontal: 'center' };
+                        }
+                        if (opts.sectionTitles && opts.sectionTitles.includes(R)) {
+                            ws[addr].s.font = { bold: true, size: 11, color: { rgb: '00B050' } };
+                        }
+                        if (!ws[addr].s.font) {
+                            ws[addr].s.font = { size: 9 };
+                        }
+                    }
+                }
+            }
+
+            const pct = v => ({ t: 'n', v: Math.round(v), z: '0"%"' });
+
+            const aoa = [];
+            aoa.push(['تقرير القرارات المساحية']);
+            aoa.push(['إعداد: هند الشهراني   |   تاريخ التقرير: ' + dateStr]);
+            aoa.push([]);
+            aoa.push(['جدول البيان الكامل']);
+            aoa.push(['البيان', 'العدد', 'النسبة']);
+            sorted.forEach(([s,c]) => aoa.push([s, c, pct(c/total*100)]));
+            aoa.push(['الإجمالي الكلي', total, pct(100)]);
+            aoa.push([]);
+            aoa.push(['جدول الإنجاز']);
+            aoa.push(['البيان', 'العدد', 'النسبة']);
+            aoa.push(['المنتهي', catCount['م1'], pct(eff?(catCount['م1']/eff*100):0)]);
+            aoa.push(['لدى المستفيد', catCount['م2'], pct(eff?(catCount['م2']/eff*100):0)]);
+            aoa.push(['تحت الإجراء', catCount['م3'], pct(eff?(catCount['م3']/eff*100):0)]);
+            aoa.push(['المرفوض', catCount['م4'], pct(eff?(catCount['م4']/eff*100):0)]);
+            aoa.push(['الإجمالي المحسوب', eff, pct(100)]);
+            aoa.push(['المنجز', done, pct(eff?(done/eff*100):0)]);
+            aoa.push(['نسبة الإنجاز', pct(rate), null]);
+            aoa.push([]);
+            aoa.push(['الرسم البياني لجدول الإنجاز (العدد حسب الفئة)']);
+            aoa.push([]);
+            aoa.push([]);
+
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!dir'] = 'rtl';
+            ws['!pageSetup'] = { orientation: 'landscape' };
+
+            const N = sorted.length;
+            const dataEnd1 = 5 + N;
+            const sec2 = dataEnd1 + 2;
+            const hdr2 = sec2 + 1;
+            const sec3 = hdr2 + 1 + 7 + 1;
+
+            const sectionRows = [3, sec2, sec3];
+            const headerRows = [4, hdr2];
+
+            styleSheet(ws, { title: true, headerRows, sectionTitles: sectionRows, cols: [{ wch: 55 }, { wch: 12 }, { wch: 14 }] });
+
+            const rRate = hdr2 + 7;
+            ws['!merges'] = ws['!merges'] || [];
+            ws['!merges'].push({ s: { r: rRate, c: 1 }, e: { r: rRate, c: 2 } });
+            const rc = XLSX.utils.encode_cell({ r: rRate, c: 1 });
+            if (ws[rc]) ws[rc].s.alignment = { horizontal: 'center', vertical: 'center' };
+
+            if (chartImageDataUrl) {
+                try {
+                    const base64 = chartImageDataUrl.split(',')[1];
+                    const binary = atob(base64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                    ws['!images'] = [{
+                        type: 'png',
+                        data: bytes,
+                        position: { type: 'absolute', r: sec3 + 1, c: 0, hpx: 380, wpx: 720 }
+                    }];
+                } catch (err) {
+                    console.warn('فشل إدراج الرسم البياني', err);
+                }
+            }
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'التقرير');
+            XLSX.writeFile(wb, 'تقرير_القرارات_المساحية.xlsx');
+            track('exports');
+        });
+
+        $('zipBtn').addEventListener('click', async () => {
+            track('zips');
+            try {
+                if (typeof JSZip === 'undefined') { alert('لم يتم تحميل مكتبة الحزم، تأكد من اتصال الإنترنت'); return; }
+                let html = '';
+                try {
+                    const res = await fetch(location.href, { cache: 'no-store' });
+                    html = await res.text();
+                } catch (err) {
+                    html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+                }
+                const zip = new JSZip();
+                zip.file('spatial-decisions.html', html);
+                const blob = await zip.generateAsync({ type: 'blob' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'spatial-decisions.zip';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+            } catch (err) {
+                alert('حدث خطأ أثناء الحزم: ' + err.message);
+            }
+        });
+
+        $('emailBtn').addEventListener('click', () => {
+            if (!rawData.length || !statusColumn) { alert('ارفع الملف أولاً لإنشاء التقرير'); return; }
+            track('emails');
+
+            const total = rawData.length;
+            const sc = {};
+            rawData.forEach(r => { const s = r[statusColumn] || 'غير محدد'; sc[s] = (sc[s]||0)+1; });
+            const sorted = Object.entries(sc).sort((a,b) => b[1]-a[1]);
+            const catCount = { 'م1':0, 'م2':0, 'م3':0, 'م4':0, 'م0':0 };
+            const catDetail = { 'م1':{}, 'م2':{}, 'م3':{}, 'م4':{}, 'م0':{} };
+            Object.entries(sc).forEach(([s,c]) => {
+                const cat = assign[s] || 'م0';
+                catCount[cat] = (catCount[cat]||0) + c;
+                catDetail[cat][s] = c;
+            });
+            const eff = catCount['م1'] + catCount['م2'] + catCount['م3'] + catCount['م4'];
+            const done = catCount['م1'] + catCount['م2'] + catCount['م4'];
+            const rate = eff ? (done/eff*100) : 0;
+            const pct = (a,b) => b ? Math.round(a/b*100) : 0;
+
+            const lines = [];
+            lines.push('تقرير القرارات المساحية');
+            lines.push('إعداد: هند الشهراني');
+            lines.push('تاريخ التقرير: ' + new Date().toLocaleDateString('ar-EG'));
+            lines.push('');
+            lines.push('جدول البيان الكامل:');
+            sorted.forEach(([s,c]) => lines.push('- ' + s + ': ' + toEn(c) + ' (' + toEn((c/total*100).toFixed(1)) + '%)'));
+            lines.push('- الإجمالي الكلي: ' + toEn(total));
+            lines.push('');
+            lines.push('جدول الإنجاز:');
+            lines.push('- المنتهي: ' + toEn(catCount['م1']) + ' (' + toEn(pct(catCount['م1'], eff)) + '%)');
+            lines.push('- لدى المستفيد: ' + toEn(catCount['م2']) + ' (' + toEn(pct(catCount['م2'], eff)) + '%)');
+            lines.push('- تحت الإجراء: ' + toEn(catCount['م3']) + ' (' + toEn(pct(catCount['م3'], eff)) + '%)');
+            lines.push('- المرفوض: ' + toEn(catCount['م4']) + ' (' + toEn(pct(catCount['م4'], eff)) + '%)');
+            lines.push('- الإجمالي المحسوب: ' + toEn(eff));
+            lines.push('- المنجز (المنتهي + لدى المستفيد + المرفوض): ' + toEn(done));
+            lines.push('- نسبة الإنجاز: ' + toEn(rate.toFixed(0)) + '%');
+            const exc = Object.entries(catDetail['م0']).map(([s,c]) => s + ' (' + toEn(c) + ')').join('، ');
+            lines.push('- الحالات المستبعدة: ' + (exc || 'لا توجد'));
+            lines.push('');
+            lines.push('ملاحظة: إذا احتاج المستلم ملف Excel أرفقه كمرفق مع الإيميل، وإن ظهر تحذير أمان بخصوص المرفقات فهو تحذير طبيعي من ويندوز للملفات المحمّلة من الإنترنت وليس فيروساً حقيقياً.');
+
+            const subject = 'تقرير القرارات المساحية - ' + new Date().toLocaleDateString('ar-EG');
+            window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(lines.join('\n'));
+        });
+
+        $('pngBtn').addEventListener('click', () => {
+            if (!chartImageDataUrl) { alert('انتظر حتى يكتمل الرسم البياني ثم أعد المحاولة'); return; }
+            track('png');
+            const a = document.createElement('a');
+            a.href = chartImageDataUrl;
+            a.download = 'تقرير_الرسم_البياني.png';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        });
+
+        function blockCopy(e) { e.preventDefault(); }
+        document.addEventListener('copy', blockCopy);
+        document.addEventListener('cut', blockCopy);
+
+        initUsage();
+    </script>
+
+</body></html>
